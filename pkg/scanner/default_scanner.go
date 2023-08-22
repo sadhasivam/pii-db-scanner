@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+
+	"github.com/sadhasivam/pii-db-scanner/pkg/exporter"
 )
 
 type DefaultScanner struct {
@@ -21,45 +23,64 @@ func (d *DefaultScanner) GetTopRecords(schema string, table string) (*sql.Rows, 
 	return nil, fmt.Errorf("GetTopRecords for %s.%s not implemeted", schema, table)
 }
 
-func printTableHeader(cols []string) {
-	for _, colName := range cols {
-		fmt.Printf("%-20s", colName) // Print column name left-aligned in a width of 20 characters
+func (d *DefaultScanner) getAllSchemas(db *sql.DB, sql string) ([]string, error) {
+	rows, err := db.Query(sql)
+	if err != nil {
+		logger.Error("GetAllSchemas error fetching schema metadata %v ", err)
+		return nil, fmt.Errorf("GetAllSchemas error fetching schema metadata %v ", err)
 	}
-	fmt.Println() // New line after header
-
-	// Print a separator line
-	for range cols {
-		fmt.Printf("%-20s", "--------------------") // Using '-' for visualization
-	}
-	fmt.Println()
-}
-
-func printTableRow(cols []string, columns []interface{}) {
-	for _, col := range columns {
-		var displayValue string
-
-		switch v := col.(type) {
-		case []uint8:
-			displayValue = string(v)
-		case nil:
-			displayValue = "NULL"
-		default:
-			displayValue = fmt.Sprintf("%v", v)
+	defer rows.Close()
+	var schemas []string
+	for rows.Next() {
+		var schema string
+		if err := rows.Scan(&schema); err != nil {
+			logger.Error("GetAllSchemas error fetching schema record %v ", err)
+			return nil, fmt.Errorf("GetAllSchemas error fetching schema record %v ", err)
 		}
-
-		fmt.Printf("%-20s", displayValue) // Print value left-aligned in a width of 20 characters
+		schemas = append(schemas, schema)
 	}
-	fmt.Println()
+	return schemas, nil
 }
 
-func (d *DefaultScanner) PrintTable(records *sql.Rows) {
+func (d *DefaultScanner) getTablesForSchema(db *sql.DB, sql string) ([]string, error) {
+	var tables []string
+	rows, err := db.Query(sql)
+	if err != nil {
+		return nil, fmt.Errorf("GetTablesForSchema error fetching tables for SQL: %s", sql)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return nil, fmt.Errorf("GetTablesForSchema error scanning tables for SQL: %s", sql)
+		}
+		tables = append(tables, table)
+	}
+
+	return tables, nil
+}
+
+func (d *DefaultScanner) getTopRecords(db *sql.DB, sql string) (*sql.Rows, error) {
+	records, err := db.Query(sql)
+	if err != nil {
+		return nil, fmt.Errorf("GetTopRecords for sql %s failed", sql)
+	}
+
+	_, err = records.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("GetTopRecords for sql %s failed", sql)
+	}
+	return records, nil
+}
+
+func (d *DefaultScanner) PrintTable(records *sql.Rows, exporter exporter.Exporter) {
 	cols, err := records.Columns()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-
-	printTableHeader(cols)
+	exporter.PrintTableHeader(cols)
 
 	for records.Next() {
 		columns := make([]interface{}, len(cols))
@@ -71,6 +92,6 @@ func (d *DefaultScanner) PrintTable(records *sql.Rows) {
 			log.Fatal(err)
 			continue
 		}
-		printTableRow(cols, columns)
+		exporter.PrintTableRow(cols, columns)
 	}
 }

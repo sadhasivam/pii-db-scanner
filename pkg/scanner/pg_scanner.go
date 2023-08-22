@@ -11,22 +11,12 @@ type PostgresScanner struct {
 }
 
 func (pg *PostgresScanner) GetAllSchemas() ([]string, error) {
-	// Get all schemas
-	fmt.Println("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'pg_toast', 'information_schema') ")
-	rows, err := pg.db.Query("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'pg_toast', 'information_schema')")
-	if err != nil {
-		return nil, fmt.Errorf("GetAllSchemas error fetching schema metadata %v ", err)
-	}
-	defer rows.Close()
-	var schemas []string
-	for rows.Next() {
-		var schema string
-		if err := rows.Scan(&schema); err != nil {
-			return nil, fmt.Errorf("GetAllSchemas error fetching schema record %v ", err)
-		}
-		schemas = append(schemas, schema)
-	}
-	return schemas, nil
+	sql := `
+		SELECT schema_name 
+		  FROM information_schema.schemata 
+		 WHERE schema_name NOT IN ('pg_catalog', 'pg_toast', 'information_schema')
+	`
+	return pg.getAllSchemas(pg.db, sql)
 }
 
 func (pg *PostgresScanner) GetTablesForSchema(schema string) ([]string, error) {
@@ -50,16 +40,6 @@ func (pg *PostgresScanner) GetTablesForSchema(schema string) ([]string, error) {
 }
 
 func (pg *PostgresScanner) GetTopRecords(schema string, table string) (*sql.Rows, error) {
-	queryString := fmt.Sprintf("SELECT * FROM %s.%s LIMIT 5", schema, table)
-
-	records, err := pg.db.Query(queryString)
-	if err != nil {
-		return nil, fmt.Errorf("GetTopRecords for %s.%s not failed", schema, table)
-	}
-
-	_, err = records.Columns()
-	if err != nil {
-		return nil, fmt.Errorf("GetTopRecords for %s.%s not failed", schema, table)
-	}
-	return records, nil
+	sql := fmt.Sprintf("SELECT * FROM %s.%s LIMIT 5", schema, table)
+	return pg.getTopRecords(pg.db, sql)
 }

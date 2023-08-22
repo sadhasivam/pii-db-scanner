@@ -3,9 +3,13 @@ package scanner
 import (
 	"database/sql"
 	"fmt"
+	"os"
+
+	"log/slog"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+	"github.com/sadhasivam/pii-db-scanner/pkg/exporter"
 )
 
 const (
@@ -13,42 +17,42 @@ const (
 	postgresConnectionFlt = "user=%s password=%s host=%s port=%d dbname=%s sslmode=disable"
 )
 
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 type Scanner interface {
 	GetAllSchemas() ([]string, error)
 	GetTablesForSchema(schema string) ([]string, error)
 	GetTopRecords(schema string, table string) (*sql.Rows, error)
-	PrintTable(*sql.Rows)
+	PrintTable(rows *sql.Rows, exporter exporter.Exporter)
 }
 
 func NewScanner(dbType string, db *sql.DB) Scanner {
 	if dbType == "mysql" {
-		fmt.Println("print mysql")
 		return &MySQLScanner{db: db}
 	}
 	if dbType == "postgres" {
 		return &PostgresScanner{db: db}
 	}
-	return nil
+	return &DefaultScanner{}
 }
 
 func Scan(dbType string, username string, password string, host string, dbport int, dbname string) (Scanner, error) {
 	connStr := ""
 	if dbType == "mysql" {
 		connStr = fmt.Sprintf(mysqlConnectionFlt, username, password, host, dbport, dbname)
-		fmt.Println(connStr)
 	} else if dbType == "postgres" {
-		fmt.Println("print postgres")
 		connStr = fmt.Sprintf(postgresConnectionFlt, username, password, host, dbport, dbname)
 	}
 	fmt.Print(connStr)
 	db, err := sql.Open(dbType, connStr)
 	if err != nil {
-		panic(err)
+		logger.Error("error obtaining %s database connection host: %s, dbname: %s \n %v ", dbType, host, dbname, err)
 		return nil, fmt.Errorf("error obtaining %s database connection host: %s, dbname: %s ", dbType, host, dbname)
 	}
 	err = db.Ping()
 	if err != nil {
-		panic(err)
+		logger.Error("error obtaining %s database connection host: %s, dbname: %s \n %v ", dbType, host, dbname, err)
+		return nil, fmt.Errorf("error obtaining %s database connection host: %s, dbname: %s ", dbType, host, dbname)
 	}
 	return NewScanner(dbType, db), nil
 }
