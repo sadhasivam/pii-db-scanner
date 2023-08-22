@@ -31,7 +31,7 @@ func (my *MySQLScanner) GetTablesForSchema(schema string) ([]string, error) {
 }
 
 func (my *MySQLScanner) GetTopRecords(schema string, table string) (*sql.Rows, error) {
-	sql := fmt.Sprintf("SELECT * FROM %s.%s LIMIT 5", schema, table)
+	sql := fmt.Sprintf("SELECT * FROM %s.%s LIMIT 25", schema, table)
 	return my.getTopRecords(my.db, sql)
 }
 

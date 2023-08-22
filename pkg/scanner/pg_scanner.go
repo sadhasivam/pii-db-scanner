@@ -40,6 +40,6 @@ func (pg *PostgresScanner) GetTablesForSchema(schema string) ([]string, error) {
 }
 
 func (pg *PostgresScanner) GetTopRecords(schema string, table string) (*sql.Rows, error) {
-	sql := fmt.Sprintf("SELECT * FROM %s.%s LIMIT 5", schema, table)
+	sql := fmt.Sprintf("SELECT * FROM %s.%s LIMIT 25", schema, table)
 	return pg.getTopRecords(pg.db, sql)
 }
